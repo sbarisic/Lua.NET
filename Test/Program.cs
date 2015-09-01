@@ -26,15 +26,6 @@ namespace Test {
 			lua_StatePtr L = Lua.luaL_newstate();
 			Lua.luaL_openlibs(L);
 
-			Lua.lua_pushcfunction(L, Advanced.Wrap(new Func<object, object>((O) => {
-				if (O != null)
-					Console.WriteLine(O.GetType());
-				else
-					Console.WriteLine("Null");
-				return O;
-			})));
-			Lua.lua_setglobal(L, "test");
-
 			string Str;
 			while ((Str = ReadLine("> ")).Length > 0)
 				if (Lua.luaL_dostring(L, Str) != 0)

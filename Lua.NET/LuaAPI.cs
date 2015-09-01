@@ -43,6 +43,10 @@ namespace LuaNET {
 	public struct lua_StatePtr {
 		public IntPtr StatePtr;
 
+		public lua_StatePtr(IntPtr State) {
+			this.StatePtr = State;
+		}
+
 		public override string ToString() {
 			return string.Format("0x{0:X}", StatePtr.ToInt64());
 		}
@@ -270,6 +274,12 @@ namespace LuaNET {
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern lua_CFunction lua_tocfunction(lua_StatePtr L, int Idx);
+
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern IntPtr lua_touserdata(lua_StatePtr L, int Idx);
+
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern lua_StatePtr lua_tothread(lua_StatePtr L, int Idx);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern IntPtr lua_topointer(lua_StatePtr L, int Idx);
