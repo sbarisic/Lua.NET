@@ -15,28 +15,30 @@ namespace Test {
 			return Console.ReadLine();
 		}
 
+		static int Wrapped(string S, double D) {
+			Console.WriteLine("String: {0}", S);
+			Console.WriteLine("Number: {0}", D);
+			return 42;
+		}
+
 		static void Main(string[] args) {
 			Console.Title = "Test";
 			lua_StatePtr L = Lua.luaL_newstate();
 			Lua.luaL_openlibs(L);
 
-			Lua.lua_pushcfunction(L, Advanced.Wrap(new Func<string, double, int>((S, I) => {
-				Console.WriteLine("String: {0}", S);
-				Console.WriteLine("Number: {0}", I);
-				return 42;
+			Lua.lua_pushcfunction(L, Advanced.Wrap(new Func<object, object>((O) => {
+				if (O != null)
+					Console.WriteLine(O.GetType());
+				else
+					Console.WriteLine("Null");
+				return O;
 			})));
 			Lua.lua_setglobal(L, "test");
 
-
 			string Str;
 			while ((Str = ReadLine("> ")).Length > 0)
-				try {
-					if (Lua.luaL_dostring(L, Str) != 0)
-						Console.WriteLine(Lua.lua_tostring(L, -1));
-
-				} catch (Exception E) {
-					Console.WriteLine(E.Message);
-				}
+				if (Lua.luaL_dostring(L, Str) != 0)
+					Console.WriteLine(Lua.lua_tostring(L, -1));
 
 			Console.WriteLine("Done!");
 			Console.ReadLine();
