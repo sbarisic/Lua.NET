@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Lua.NET;
+using System.Runtime.InteropServices;
+using LuaNET;
 
 namespace Test {
 	class Program {
@@ -14,10 +15,21 @@ namespace Test {
 
 		static void Main(string[] args) {
 			Console.Title = "Test";
+			lua_StatePtr L = Lua.luaL_newstate();
+			Lua.luaL_openlibs(L);
+
+			Lua.lua_pushcfunction(L, (State) => {
+				Console.WriteLine("Hello World!");
+				return 0;
+			});
+			Lua.lua_setglobal(L, "test");
+
 
 			string Str;
 			while ((Str = ReadLine("> ")).Length > 0)
 				try {
+					if (Lua.luaL_dostring(L, Str) != 0)
+						Console.WriteLine(Lua.lua_tostring(L, -1));
 
 				} catch (Exception E) {
 					Console.WriteLine(E.Message);
