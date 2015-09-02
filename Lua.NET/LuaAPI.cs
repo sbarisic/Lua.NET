@@ -1,4 +1,11 @@
-﻿using System;
+﻿#undef lua51 // Done
+#undef lua52 // Not implemented
+#undef lua53 // Not implemented
+#undef luajit // Done
+/////////////
+#define lua51
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,8 +13,30 @@ using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 
 namespace LuaNET {
+	public enum LuaVersion {
+		Unknown,
+		Lua51,
+		Lua52,
+		Lua53,
+		LuaJIT
+	}
+
 	internal class Settings {
-		public const string DllName = "lua5.1.dll";
+		public const string DllName =
+#if lua51
+ "lua5.1.dll"
+#elif lua52
+ "lua5.2.dll"
+#elif lua53
+ "lua5.3.dll"
+#elif luajit
+ "luajit.dll"
+#else
+ ""
+#error Unknown lua version
+#endif
+;
+
 		public const CallingConvention CConv = CallingConvention.Cdecl;
 		public const CharSet CSet = CharSet.Ansi;
 	}
@@ -146,7 +175,47 @@ namespace LuaNET {
 	[UnmanagedFunctionPointer(Settings.CConv, CharSet = Settings.CSet)]
 	public delegate void lua_Hook(lua_StatePtr L, lua_DebugPtr AR);
 
+#if luajit
+	public enum LuaJITMode : uint {
+		Engine,
+		Debug,
+		Func,
+		AllFunc,
+		AllSubFunc,
+		Trace,
+		WrapCFunc = 0x10,
+		Max
+	}
+#endif
+
 	public static class Lua {
+		public const LuaVersion VERSION =
+#if lua51
+ LuaVersion.Lua51
+#elif lua52
+ LuaVersion.Lua52
+#elif lua53
+ LuaVersion.Lua53
+#elif luajit
+ LuaVersion.LuaJIT
+#else
+ LuaVersion.Unknown
+#error Unknown lua version
+#endif
+;
+
+#if luajit
+		public const int LUAJIT_MODE_MASK = 0xFF;
+		public const int LUAJIT_MODE_OFF = 0x0;
+		public const int LUAJIT_MODE_ON = 0x100;
+		public const int LUAJIT_MODE_FLUSH = 0x200;
+
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern int luaJIT_setmode(lua_StatePtr L, int Idx, int Mode);
+
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern void LUAJIT_VERSION_SYM();
+#endif
 		public const int LUA_IDSIZE = 60;
 
 		// Option for multiple returns in 'lua_pcall' and 'lua_call'
