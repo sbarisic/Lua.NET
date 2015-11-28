@@ -3,7 +3,7 @@
 #undef lua53
 #undef luajit
 /////////////
-#define lua51
+#define lua52
 
 #if lua51
 #elif luajit
@@ -32,9 +32,9 @@ namespace LuaNET {
 #if lua51
  "lua5.1.dll"
 #elif lua52
- "lua5.2.dll"
+ "lua52.dll"
 #elif lua53
- "lua5.3.dll"
+ "lua53.dll"
 #elif luajit
  "luajit.dll"
 #else
@@ -70,6 +70,40 @@ namespace LuaNET {
 		public static ICustomMarshaler GetInstance(string Cookie) {
 			if (Singleton == null)
 				Singleton = new LuaStringMarshal();
+			return Singleton;
+		}
+	}
+
+	internal class LuaFunctionMarshal : ICustomMarshaler {
+		Dictionary<lua_CFunction, GCHandle> lua_CFunction_Handles;
+
+		public void CleanUpManagedData(object ManagedObj) {
+		}
+
+		public void CleanUpNativeData(IntPtr NativeData) {
+		}
+
+		public int GetNativeDataSize() {
+			return -1;
+		}
+
+		public IntPtr MarshalManagedToNative(object ManagedObj) {
+			lua_CFunction F = (lua_CFunction)ManagedObj;
+			if (lua_CFunction_Handles == null)
+				lua_CFunction_Handles = new Dictionary<lua_CFunction, GCHandle>();
+			if (!lua_CFunction_Handles.ContainsKey(F))
+				lua_CFunction_Handles.Add(F, GCHandle.Alloc(F));
+			return Marshal.GetFunctionPointerForDelegate(F);
+		}
+
+		public object MarshalNativeToManaged(IntPtr NativeData) {
+			return (lua_CFunction)Marshal.GetDelegateForFunctionPointer(NativeData, typeof(lua_CFunction));
+		}
+
+		internal static LuaFunctionMarshal Singleton;
+		public static ICustomMarshaler GetInstance(string Cookie) {
+			if (Singleton == null)
+				Singleton = new LuaFunctionMarshal();
 			return Singleton;
 		}
 	}
@@ -143,10 +177,10 @@ namespace LuaNET {
 
 		public lua_CFunction Func {
 			get {
-				return (lua_CFunction)Marshal.GetDelegateForFunctionPointer(Fnc, typeof(lua_CFunction));
+				return (lua_CFunction)LuaFunctionMarshal.GetInstance("").MarshalNativeToManaged(Fnc);
 			}
 			set {
-				Fnc = Marshal.GetFunctionPointerForDelegate(value);
+				Fnc = LuaFunctionMarshal.GetInstance("").MarshalManagedToNative(value);
 			}
 		}
 
@@ -229,8 +263,10 @@ namespace LuaNET {
 
 		// Pseudo-indices
 		public const int LUA_REGISTRYINDEX = -10000;
+#if lua51
 		public const int LUA_ENVIRONINDEX = -10001;
 		public const int LUA_GLOBALSINDEX = -10002;
+#endif
 
 		public static int lua_upvalueindex(int I) {
 			return LUA_GLOBALSINDEX - I;
@@ -270,7 +306,8 @@ namespace LuaNET {
 		public static extern lua_StatePtr lua_newthread(lua_StatePtr L);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		public static extern lua_CFunction lua_atpanic(lua_StatePtr L, lua_CFunction PanicF);
+		[return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))]
+		public static extern lua_CFunction lua_atpanic(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))] lua_CFunction PanicF);
 
 		// Basic stack manipulation
 
@@ -348,6 +385,7 @@ namespace LuaNET {
 		public static extern IntPtr lua_objlen(lua_StatePtr L, int Idx);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		[return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))]
 		public static extern lua_CFunction lua_tocfunction(lua_StatePtr L, int Idx);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
@@ -380,7 +418,7 @@ namespace LuaNET {
 		// lua_pushfstring
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		public static extern void lua_pushcclosure(lua_StatePtr L, lua_CFunction Fn, int N);
+		public static extern void lua_pushcclosure(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))] lua_CFunction Fn, int N);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern void lua_pushboolean(lua_StatePtr L, bool B);
@@ -414,8 +452,10 @@ namespace LuaNET {
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_getmetatable(lua_StatePtr L, int ObjIdx);
 
+#if lua51
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern void lua_getfenv(lua_StatePtr L, int Idx);
+#endif
 
 		// Set functions (stack -> Lua)
 
@@ -434,8 +474,10 @@ namespace LuaNET {
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_setmetatable(lua_StatePtr L, int ObjIdx);
 
+#if lua51
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_setfenv(lua_StatePtr L, int Idx);
+#endif
 
 		// 'load' and 'call' functions (load and run Lua code)
 
@@ -446,7 +488,7 @@ namespace LuaNET {
 		public static extern int lua_pcall(lua_StatePtr L, int Nargs, int NResults, int ErrFunc);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		public static extern int lua_cpcall(lua_StatePtr L, lua_CFunction Func, IntPtr UD);
+		public static extern int lua_cpcall(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))] lua_CFunction Func, IntPtr UD);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_load(lua_StatePtr L, lua_Reader Reader, IntPtr DT, string ChunkName);
