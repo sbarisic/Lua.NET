@@ -3,7 +3,7 @@
 #undef lua53 // Not implemented
 #undef luajit // Done
 /////////////
-#define lua52
+#define lua51
 
 using System;
 using System.Collections.Generic;
@@ -112,6 +112,12 @@ namespace LuaNET {
 
 		public override string ToString() {
 			return string.Format("0x{0:X}", StatePtr.ToInt64());
+		}
+
+		public static lua_StatePtr NULL {
+			get {
+				return new lua_StatePtr(IntPtr.Zero);
+			}
 		}
 	}
 
@@ -263,8 +269,20 @@ namespace LuaNET {
 #endif
 
 		public static int lua_upvalueindex(int I) {
-			return LUA_GLOBALSINDEX - I;
+			return
+#if lua51
+ LUA_GLOBALSINDEX
+#else
+ LUA_REGISTRYINDEX
+#endif
+ - I;
 		}
+
+#if !lua51
+		public const int LUA_OPEQ = 0;
+		public const int LUA_OPLT = 1;
+		public const int LUA_OPLE = 2;
+#endif
 
 		// Thread status; 0 is OK
 		public const int LUA_YIELD = 1;
@@ -376,7 +394,13 @@ namespace LuaNET {
 		public static extern StrPtr lua_tolstring_ptr(lua_StatePtr L, int Idx, out IntPtr Len);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		public static extern IntPtr lua_objlen(lua_StatePtr L, int Idx);
+		public static extern IntPtr
+#if lua51
+ lua_objlen
+#else
+ lua_rawlen
+#endif
+(lua_StatePtr L, int Idx);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		[return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))]
@@ -465,6 +489,11 @@ namespace LuaNET {
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern void lua_rawseti(lua_StatePtr L, int Idx, int N);
 
+#if !lua51
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern int luaL_setfuncs(lua_StatePtr L, luaL_Reg[] l, int nup);
+#endif
+
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_setmetatable(lua_StatePtr L, int ObjIdx);
 
@@ -476,16 +505,36 @@ namespace LuaNET {
 		// 'load' and 'call' functions (load and run Lua code)
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+#if lua51
 		public static extern void lua_call(lua_StatePtr L, int NArgs, int NResults);
+#else
+		public static extern void lua_callk(lua_StatePtr L, int NArgs, int NResults, int Ctx, lua_CFunction K);
+
+		public static void lua_call(lua_StatePtr L, int NArgs, int NResults) {
+			lua_callk(L, NArgs, NResults, 0, null);
+		}
+#endif
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+#if lua51
 		public static extern int lua_pcall(lua_StatePtr L, int Nargs, int NResults, int ErrFunc);
+#else
+		public static extern int lua_pcallk(lua_StatePtr L, int Nargs, int NResults, int ErrFunc, int Ctx, lua_CFunction K);
+
+		public static int lua_pcall(lua_StatePtr L, int NArgs, int NResults, int ErrFunc) {
+			return lua_pcallk(L, NArgs, NResults, ErrFunc, 0, null);
+		}
+#endif
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_cpcall(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))] lua_CFunction Func, IntPtr UD);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		public static extern int lua_load(lua_StatePtr L, lua_Reader Reader, IntPtr DT, string ChunkName);
+		public static extern int lua_load(lua_StatePtr L, lua_Reader Reader, IntPtr DT, string ChunkName
+#if !lua51
+, string Mode = null
+#endif
+);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_dump(lua_StatePtr L, lua_Writer Writer, IntPtr Data);
@@ -496,7 +545,12 @@ namespace LuaNET {
 		public static extern int lua_yield(lua_StatePtr L, int NResults);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		public static extern int lua_resume(lua_StatePtr L, int NArg);
+		public static extern int lua_resume(lua_StatePtr L,
+#if lua51
+#else
+ lua_StatePtr From,
+#endif
+ int NArg);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_status(lua_StatePtr L);
@@ -513,6 +567,11 @@ namespace LuaNET {
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int lua_next(lua_StatePtr L, int Idx);
+
+#if !lua51
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern int lua_compare(lua_StatePtr L, int Idx1, int Idx2, int Op);
+#endif
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern void lua_concat(lua_StatePtr L, int N);
@@ -543,7 +602,13 @@ namespace LuaNET {
 		}
 
 		public static IntPtr lua_strlen(lua_StatePtr L, int I) {
-			return lua_objlen(L, I);
+			return
+#if lua51
+ lua_objlen
+#else
+ lua_rawlen
+#endif
+(L, I);
 		}
 
 		public static bool lua_isfunction(lua_StatePtr L, int N) {
@@ -582,6 +647,7 @@ namespace LuaNET {
 			lua_pushlstring(L, S, new IntPtr(S.Length));
 		}
 
+#if lua51
 		public static void lua_setglobal(lua_StatePtr L, string S) {
 			lua_setfield(L, LUA_GLOBALSINDEX, S);
 		}
@@ -589,6 +655,14 @@ namespace LuaNET {
 		public static void lua_getglobal(lua_StatePtr L, string S) {
 			lua_getfield(L, LUA_GLOBALSINDEX, S);
 		}
+#else
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern void lua_setglobal(lua_StatePtr L, string S);
+
+		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
+		public static extern void lua_getglobal(lua_StatePtr L, string S);
+#endif
+
 
 		public static string lua_tostring(lua_StatePtr L, int I) {
 			IntPtr Len;
@@ -660,8 +734,10 @@ namespace LuaNET {
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int luaL_callmeta(lua_StatePtr L, int Obj, string E);
 
+#if lua51
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int luaL_typerror(lua_StatePtr L, int NArg, string TName);
+#endif
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern int luaL_argerror(lua_StatePtr L, int NumArg, string ExtraMsg);

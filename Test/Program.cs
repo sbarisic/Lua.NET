@@ -39,7 +39,7 @@ namespace Test {
 			}, IntPtr.Zero);
 			Lua.luaL_openlibs(L);
 
-			//Lua.lua_register(L, "test", Test);
+			Lua.lua_register(L, "test", Test);
 
 			/*if (Lua.VERSION == LuaVersion.LuaJIT) { // LuaJIT print doesn't work :V
 				Advanced.SetGlobal(L, "write", new Action<string>(Console.Write));
