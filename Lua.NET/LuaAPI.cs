@@ -1,15 +1,9 @@
-#undef lua51
-#undef lua52
-#undef lua53
-#undef luajit
+﻿#undef lua51 // Done
+#undef lua52 // Not implemented
+#undef lua53 // Not implemented
+#undef luajit // Done
 /////////////
 #define lua52
-
-#if lua51
-#elif luajit
-#else
-#error "Not implemented"
-#endif
 
 using System;
 using System.Collections.Generic;
