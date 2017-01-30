@@ -436,7 +436,7 @@ namespace LuaNET {
 		// lua_pushfstring
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		public static extern void lua_pushcclosure(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))] lua_CFunction Fn, int N);
+		public static extern void lua_pushcclosure(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaFunctionMarshal))] lua_CFunction Fn, int N);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		public static extern void lua_pushboolean(lua_StatePtr L, bool B);
