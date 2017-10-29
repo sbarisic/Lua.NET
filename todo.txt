@@ -1,3 +1,4 @@
 TODO:
 
-Check why it doesn't work
+~~Check why it doesn't work~~
+It works.
