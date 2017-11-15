@@ -319,7 +319,7 @@ namespace LuaNET {
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
 		[return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))]
-		public static extern lua_CFunction lua_atpanic(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))] lua_CFunction PanicF);
+		public static extern lua_CFunction lua_atpanic(lua_StatePtr L, [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaFunctionMarshal))] lua_CFunction PanicF);
 
 		// Basic stack manipulation
 
@@ -403,7 +403,7 @@ namespace LuaNET {
 (lua_StatePtr L, int Idx);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
-		[return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaStringMarshal))]
+		[return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(LuaFunctionMarshal))]
 		public static extern lua_CFunction lua_tocfunction(lua_StatePtr L, int Idx);
 
 		[DllImport(Settings.DllName, CharSet = Settings.CSet, CallingConvention = Settings.CConv)]
