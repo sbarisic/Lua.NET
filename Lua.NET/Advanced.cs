@@ -176,7 +176,19 @@ namespace LuaNET {
 			if (Ret != null)
 				T = Ret.GetType();
 
-			if (NetToLuaMarshals.ContainsKey(T))
+			if (T.IsArray) {
+				Array Array = (Array)Ret;
+				int i = 1;
+
+				Lua.lua_createtable(L, Array.Length, 0);
+
+				foreach (var Obj in Array) {
+					Push(L, Obj);
+					Lua.lua_rawseti(L, -2, i++);
+				}
+
+				return 1;
+			} else if (NetToLuaMarshals.ContainsKey(T))
 				return NetToLuaMarshals[T](L, Ret);
 			else
 				foreach (var KV in NetToLuaMarshals)
