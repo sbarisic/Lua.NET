@@ -46,6 +46,7 @@
   <ItemGroup>
     <Compile Include="Advanced.cs" />
     <Compile Include="LuaAPI.cs" />
+    <Compile Include="LuaReference.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

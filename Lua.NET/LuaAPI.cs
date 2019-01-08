@@ -24,7 +24,7 @@ namespace LuaNET {
 	internal class Settings {
 		public const string DllName =
 #if lua51
- "lua5.1.dll"
+ "lua51.dll"
 #elif lua52
  "lua52.dll"
 #elif lua53

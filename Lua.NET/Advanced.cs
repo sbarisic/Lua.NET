@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace LuaNET {
 	public static class Advanced {
@@ -20,39 +20,52 @@ namespace LuaNET {
 
 			Advanced.AddTypeMarshal(typeof(object), (State, Idx) => {
 				int LT = Lua.lua_type(State, Idx);
+				string TypeName = Lua.luaL_typename(State, Idx);
+
 				Type T = null;
+
 				switch (LT) {
 					case Lua.LUA_TNONE:
 						Lua.luaL_argerror(State, Idx, "expected a value");
 						return null;
+
 					case Lua.LUA_TNIL:
 						return null;
+
 					case Lua.LUA_TBOOLEAN:
 						T = typeof(bool);
 						break;
+
 					case Lua.LUA_TNUMBER:
 						T = typeof(double);
 						break;
+
 					case Lua.LUA_TSTRING:
 						T = typeof(string);
 						break;
+
 					case Lua.LUA_TLIGHTUSERDATA:
 						T = typeof(IntPtr);
 						break;
+
 					case Lua.LUA_TFUNCTION:
 						if (Lua.lua_iscfunction(State, Idx))
 							T = typeof(lua_CFunction);
 						else
-							throw new NotImplementedException();
+							T = typeof(LuaFuncRef);
 						break;
+
 					case Lua.LUA_TTABLE:
+						T = typeof(LuaReference);
+						break;
+
 					case Lua.LUA_TTHREAD:
 					case Lua.LUA_TUSERDATA:
 					default:
 						throw new NotImplementedException();
 				}
 
-				return Pop(State, Idx, T);
+				return Get(State, Idx, T);
 			}, (State, Obj) => {
 				if (Obj == null) {
 					Lua.lua_pushnil(State);
@@ -142,9 +155,23 @@ namespace LuaNET {
 				Lua.lua_pushlightuserdata(State, GetHandleFromType((Type)Obj));
 				return 1;
 			});
+
+			Advanced.AddTypeMarshal(typeof(LuaReference), (State, Idx) => {
+				return new LuaReference(State, Idx);
+			}, (State, Obj) => {
+				((LuaReference)Obj).GetRef();
+				return 1;
+			});
+
+			Advanced.AddTypeMarshal(typeof(LuaFuncRef), (State, Idx) => {
+				return new LuaFuncRef(State, Idx);
+			}, (State, Obj) => {
+				((LuaFuncRef)Obj).GetRef();
+				return 1;
+			});
 		}
 
-		static int Push(lua_StatePtr L, object Ret) {
+		public static int Push(lua_StatePtr L, object Ret) {
 			Type T = typeof(object);
 			if (Ret != null)
 				T = Ret.GetType();
@@ -163,7 +190,9 @@ namespace LuaNET {
 			throw new Exception("Unsupported Lua marshal type " + T);
 		}
 
-		static object Pop(lua_StatePtr L, int N, Type T) {
+		public static object Get(lua_StatePtr L, int N, Type T) {
+			N = GetActualStackIndex(L, N);
+
 			if (LuaToNetMarshals.ContainsKey(T))
 				return LuaToNetMarshals[T](L, N);
 			else
@@ -201,25 +230,34 @@ namespace LuaNET {
 
 		public static lua_CFunction Wrap(Delegate D) {
 			DelegateHandles.Add(GCHandle.Alloc(D));
-			return Wrap(D.Method);
+			return Wrap(D.Method, D.Target);
 		}
 
-		public static lua_CFunction Wrap(MethodInfo Method) {
+		public static lua_CFunction Wrap(MethodInfo Method, object Instance = null) {
 			MethodInfo PushMethod = GetMethodInfo(() => Push(default(lua_StatePtr), null));
-			MethodInfo PopMethod = GetMethodInfo(() => Pop(default(lua_StatePtr), 0, typeof(void)));
+			MethodInfo PopMethod = GetMethodInfo(() => Get(default(lua_StatePtr), 0, typeof(void)));
 			List<Expression> LuaToCS = new List<Expression>();
 			ParameterInfo[] Params = Method.GetParameters();
 
 			ParameterExpression L = Expression.Parameter(typeof(lua_StatePtr), "L");
 
 			for (int i = 0; i < Params.Length; i++) {
-				MethodCallExpression PopMethodCall = Expression.Call(PopMethod, L, Expression.Constant(i + 1),
-					Expression.Constant(Params[i].ParameterType, typeof(Type)));
+				MethodCallExpression PopMethodCall = Expression.Call(PopMethod, L, Expression.Constant(i + 1), Expression.Constant(Params[i].ParameterType, typeof(Type)));
 				LuaToCS.Add(Expression.Convert(PopMethodCall, Params[i].ParameterType));
 			}
 
 			List<Expression> Body = new List<Expression>();
-			MethodCallExpression Call = Expression.Call(Method, LuaToCS.ToArray());
+			MethodCallExpression Call = null;
+
+			if (Method.IsStatic) {
+				Call = Expression.Call(Method, LuaToCS.ToArray());
+			} else {
+				if (Instance == null)
+					throw new NotImplementedException();
+
+				Call = Expression.Call(Expression.Constant(Instance), Method, LuaToCS.ToArray());
+			}
+
 			if (Method.ReturnType != typeof(void))
 				Body.Add(Expression.Call(PushMethod, L, Expression.Convert(Call, typeof(object))));
 			else {
@@ -228,8 +266,10 @@ namespace LuaNET {
 			}
 
 			Expression CFunc = Body[0];
+
 			if (Body.Count > 1)
 				CFunc = Expression.Block(Body.ToArray());
+
 			lua_CFunction Func = Expression.Lambda<lua_CFunction>(CFunc, L).Compile();
 			DelegateHandles.Add(GCHandle.Alloc(Func));
 			return Func;
@@ -240,12 +280,19 @@ namespace LuaNET {
 			Lua.lua_setglobal(L, Name);
 		}
 
-		public static void OpenLib(lua_StatePtr L, Type StaticType, int NUp = 0, bool SkipInvalid = true) {
+		public static object GetGlobal(lua_StatePtr L, string Name, Type ObjType) {
+			Lua.lua_getglobal(L, Name);
+			return Get(L, 1, ObjType);
+		}
+
+		public static void OpenLib(lua_StatePtr L, Type StaticType, string LibName = null, int NUp = 0, bool SkipInvalid = true) {
 			if (StaticType.IsClass && StaticType.IsAbstract && StaticType.IsSealed) {
 				List<luaL_Reg> Regs = new List<luaL_Reg>();
 				MethodInfo[] Methods = StaticType.GetMethods(BindingFlags.Static | BindingFlags.Public);
+
 				if (Methods.Length == 0)
 					return;
+
 				for (int i = 0; i < Methods.Length; i++) {
 					try {
 						Regs.Add(new luaL_Reg(Methods[i].Name, Wrap(Methods[i])));
@@ -253,10 +300,60 @@ namespace LuaNET {
 						continue;
 					}
 				}
+
 				Regs.Add(luaL_Reg.NULL);
-				Lua.luaL_openlib(L, StaticType.Name, Regs.ToArray(), NUp);
+
+				if (LibName == null)
+					LibName = StaticType.Name;
+
+				Lua.luaL_openlib(L, LibName, Regs.ToArray(), NUp);
 			} else
 				throw new Exception("Cannot register non static class as library");
+		}
+
+		public static string[] DumpStack(lua_StatePtr L) {
+			int Top = Lua.lua_gettop(L);
+			List<string> Stack = new List<string>();
+
+			for (int i = 1; i <= Top; i++) {
+				int t = Lua.lua_type(L, i);
+
+				switch (t) {
+
+					case Lua.LUA_TSTRING:
+						Stack.Add(string.Format("'{0}'", Lua.lua_tostring(L, i)));
+						break;
+
+					case Lua.LUA_TBOOLEAN:
+						Stack.Add(Lua.lua_toboolean(L, i) ? "true" : "false");
+						break;
+
+					case Lua.LUA_TNUMBER:
+						Stack.Add(Lua.lua_tonumber(L, i).ToString());
+						break;
+
+					default:
+						Stack.Add(Lua.lua_typename(L, t));
+						break;
+
+				}
+			}
+
+			return Stack.ToArray();
+		}
+
+		public static void PrintStack(lua_StatePtr L) {
+			string[] Stack = DumpStack(L);
+
+			for (int i = 0; i < Stack.Length; i++)
+				Console.WriteLine("{0} - {1}", i + 1, Stack[i]);
+		}
+
+		public static int GetActualStackIndex(lua_StatePtr L, int Idx) {
+			if (Idx < 0 && Idx > Lua.LUA_REGISTRYINDEX)
+				Idx = Lua.lua_gettop(L) + Idx + 1;
+
+			return Idx;
 		}
 	}
 }
